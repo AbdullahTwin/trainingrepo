@@ -1,61 +1,72 @@
-provider "vsphere" {
-  user           = "your_username"
-  password       = "your_password"
-  vsphere_server = "vcenter_server_ip"
+###########################################
+# Define Variables 
+###########################################
+variable "vsphere_user" {}
+variable "vsphere_password" {}
+variable "vsphere_server" {}
 
-  # Adjust these according to your vCenter configuration
+################################################
+# Provider section
+################################################
+provider "vsphere" {
+  user           = "${var.vsphere_user}"
+  password       = "${var.vsphere_password}"
+  vsphere_server = "${var.vsphere_server}"
+
+  # If you have a self-signed cert
   allow_unverified_ssl = true
 }
 
-data "vsphere_compute_cluster" "cluster" {
-  name          = "cluster-01"
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
+#################################################
+# Capturing the data from vsphere
+#################################################
 data "vsphere_datacenter" "dc" {
-  name = "your_datacenter_name"
+  name = "datacenter_name"
 }
 
-# This is the datastore the VM is using
 data "vsphere_datastore" "datastore" {
-  name          = "your_datastore_name"
-  datacenter_id = data.vsphere_datacenter.dc.id
+  name          = "datastore_name"
+  datacenter_id = "${data.vsphere_datacenter.dc.id}"
+}
+
+data "vsphere_resource_pool" "pool" {
+  name          = "resource_pool_name"
+  datacenter_id = "${data.vsphere_datacenter.dc.id}"
 }
 
 data "vsphere_network" "network" {
-  name          = "your_network_name"
-  datacenter_id = data.vsphere_datacenter.dc.id
+  name          = "network_name"
+  datacenter_id = "${data.vsphere_datacenter.dc.id}"
 }
 
+###################################################
+# Resources
+###################################################
 resource "vsphere_virtual_machine" "vm" {
-  name             = "your_vm_name"
-  resource_pool_id = "your_resource_pool_id"
-  datastore_id     = data.vsphere_datastore.datastore.id
-  folder           = "your_vm_folder_path"
-  num_cpus         = 4
-  memory           = 16384 # in MB (16GB)
-  guest_id = "rhel8_64Guest" # Red Hat Enterprise Linux 8 64-bit guest ID
+  name             = "vm_name"
+  resource_pool_id = "${data.vsphere_resource_pool.pool.id}"
+  datastore_id     = "${data.vsphere_datastore.datastore.id}"
+
+  num_cpus = 4
+  memory   = 16384
+  guest_id = "rhel8_64Guest"
 
   network_interface {
-    network_id   = data.vsphere_network.network.id
-    adapter_type = "vmxnet3"
+    network_id = "${data.vsphere_network.network.id}"
   }
 
   disk {
-    label            = "disk0"
-    size             = 500 # in GB
-    eagerly_scrub    = true
-    thin_provisioned = true
-  }
-
-  # CD/DVD drives
-  cdrom {
-    datastore_id = data.vsphere_datastore.datastore.id
-    path         = "path/to/env-ovf-xml.iso" # Path to RHEL 8 ISO file
+    label = "disk0"
+    size  = 500
   }
 
   cdrom {
-    datastore_id = data.vsphere_datastore.datastore.id
-    path         = "/path/to/RTE-vX.X.X.X.iso" # Path to another ISO file
+    datastore_id = data.vsphere_datastore.iso_datastore.id
+    path         = "/Volume/Storage/ISO/RTE.iso"
+  }
+
+  cdrom {
+    datastore_id = data.vsphere_datastore.iso_datastore.id
+    path         = "/Volume/Storage/ISO/OVF-ENV.iso"
   }
 }
